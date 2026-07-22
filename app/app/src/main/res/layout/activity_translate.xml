@@ -14,5 +14,9 @@
             android:imeOptions="actionGo" android:maxLines="1"/>
         <Button android:id="@+id/go" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:text="Go"/>
+        <Button android:id="@+id/verify" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="🌐 Verify"
+            android:enabled="false"
+            style="?android:attr/borderlessButtonStyle"/>
     </LinearLayout>
 </LinearLayout>

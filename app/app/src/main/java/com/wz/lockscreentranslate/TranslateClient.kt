@@ -20,6 +20,7 @@ object TranslateClient {
         authToken: String,
         input: String,
         render: String,
+        web: Boolean = false,
         onChunk: (String) -> Unit,
         onDone: (content: String, model: String) -> Unit,
         onError: (String) -> Unit,
@@ -30,6 +31,7 @@ object TranslateClient {
                 .put("input", input)
                 .put("mode", "everyday")
                 .put("render", render)
+                .put("web", web)          // opt-in forced web-grounding ("verify")
                 .put("stream", true)
                 .toString()
             Log.i(TAG, "POST $proxyUrl payload=$payload")

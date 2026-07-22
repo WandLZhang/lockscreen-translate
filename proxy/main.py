@@ -89,6 +89,24 @@ def _maas(region):
     return openai.OpenAI(base_url=base, api_key=_access_token())
 
 
+def _web_context(text):
+    """Forced Gemini google_search fetch (thinking OFF) -> current HK usage to inject. ~5-6s.
+    Fresh client (thread-safe). Hosted search otherwise barely fires; the hard instruction +
+    google_search tool makes it search reliably. Returns '' on failure (caller falls back)."""
+    from google import genai
+    from google.genai import types
+    client = genai.Client(vertexai=True, project=PROJECT, location="global")
+    cfg = types.GenerateContentConfig(
+        system_instruction=("You MUST call the google_search tool to verify CURRENT Hong Kong "
+                            "Cantonese usage before answering. Return the current colloquial term(s) "
+                            "with a one-line gloss each. No preamble."),
+        max_output_tokens=1200,
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
+        tools=[types.Tool(google_search=types.GoogleSearch())])
+    r = client.models.generate_content(model="gemini-3.6-flash", contents=f"Phrase: {text}", config=cfg)
+    return getattr(r, "text", "") or ""
+
+
 def _sse(obj):
     return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
@@ -201,12 +219,19 @@ def translate(request):
     render = body.get("render", "spans")
     system = SPAN_PROMPT if render == "spans" else PLAIN_PROMPT
 
-    if GROUNDING_MODE == "on":
-        grounding = bool(spec.get("grounding"))
-    elif GROUNDING_MODE == "off":
-        grounding = False
-    else:  # auto
-        grounding = bool(spec.get("grounding"))
+    # Opt-in "verify": inject a forced Gemini google_search fetch of current HK usage, then let
+    # the chosen model translate from it (native hosted grounding is unreliable, so we never use
+    # it). Adds ~5-6s. Default off — the model translates from parametric knowledge (~snappy).
+    grounding = False
+    if bool(body.get("web", False)):
+        try:
+            ctx = _web_context(text)
+            if ctx:
+                system = system + ("\n\n## LIVE WEB CONTEXT — current Hong Kong usage (from web "
+                                   "search). Prefer these up-to-date forms:\n" + ctx)
+                print(f"web verify: injected {len(ctx)} chars of live context")
+        except Exception as e:
+            print(f"web verify fetch failed (falling back to no-web): {e}")
 
     user = USER_TMPL.format(text=text)
     return Response(_stream(spec, system, user, grounding),

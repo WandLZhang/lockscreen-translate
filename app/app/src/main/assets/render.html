@@ -29,10 +29,17 @@
   .block.canto { border-left: 3px solid #3b82f6; padding-left: 4vw; }
   .placeholder { color: #5f6368; font-size: 1rem; text-align: center; }
   .err { color: #f28b82; font-size: 1rem; }
+  /* verify badge — floats over the CURRENT result without clearing it */
+  #badge { position: fixed; top: 2.2vh; right: 3vw; z-index: 10; display: none;
+    background: #1f2937; color: #cbd5e1; border: 1px solid #374151; border-radius: 999px;
+    padding: .5rem 1rem; font-size: .95rem; opacity: .94;
+    animation: pulse 1.3s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .55; } 50% { opacity: .95; } }
 </style>
 </head>
 <body>
   <div id="out"><div class="placeholder">Say or type an English word…</div></div>
+  <div id="badge">🌐 verifying…</div>
 <script>
   // raw = the proxy's markdown+spans content. We only need the two Chinese lines; the
   // <span class="zh-cmn/zh-yue"> tags render with the bundled fonts. Marker replacement only
@@ -49,7 +56,13 @@
     document.getElementById('out').innerHTML = '<div class="err">' + msg + '</div>';
   }
   function setBusy() {
+    setVerifying(false);
     document.getElementById('out').innerHTML = '<div class="placeholder">translating…</div>';
+  }
+  // Verify keeps the CURRENT translation on screen and only floats this badge; the result is
+  // swapped in via setContent when the grounded generation finishes (never a blank in between).
+  function setVerifying(on) {
+    document.getElementById('badge').style.display = on ? 'block' : 'none';
   }
 </script>
 </body>
