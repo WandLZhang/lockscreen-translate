@@ -1,0 +1,6 @@
+functions-framework==3.*
+anthropic[vertex]>=0.118.0
+google-genai>=2.13.0
+openai>=2.0.0
+google-auth>=2.0.0
+flask-cors>=4.0.0

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Phase-2 increments: RECORD_AUDIO (voice), POST_NOTIFICATIONS + USE_FULL_SCREEN_INTENT
+         (fallback trigger), and the AccessibilityService are added when those land. -->
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.LT">
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The full-screen landscape translator. Lock-screen flags are set now so a later
+             volume-chord trigger can launch it straight over the keyguard. -->
+        <activity
+            android:name=".TranslateActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.LT.Fullscreen" />
+    </application>
+</manifest>

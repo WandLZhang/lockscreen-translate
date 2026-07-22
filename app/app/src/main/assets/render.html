@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+<style>
+  @font-face {
+    font-family: 'VF-Canto';
+    src: url('fonts/VF-Canto-HKEdB.woff2') format('woff2');
+    font-display: swap; font-weight: 400;
+  }
+  @font-face {
+    font-family: 'Hanzi-Pinyin';
+    src: url('fonts/Hanzi-Pinyin-Font.top.woff2') format('woff2');
+    font-display: swap; font-weight: 400;
+  }
+  html, body { margin: 0; height: 100%; background: #0e0f13; color: #e8eaed;
+    font-family: system-ui, sans-serif; }
+  #out { box-sizing: border-box; min-height: 100%; padding: 4vh 6vw;
+    display: flex; flex-direction: column; justify-content: center; gap: 3.2vh; }
+  .label { font-size: 0.8rem; letter-spacing: .18em; text-transform: uppercase;
+    color: #9aa0a6; margin-bottom: .4rem; }
+  /* Mandarin (pinyin drawn above each char by the font) */
+  .zh-cmn { font-family: 'Hanzi-Pinyin', system-ui, sans-serif; font-size: 2.3rem;
+    line-height: 1.25; font-weight: 400; }
+  /* Cantonese — the star: jyutping drawn above each char by VF-Canto */
+  .zh-yue { font-family: 'VF-Canto', 'Hanzi-Pinyin', system-ui, sans-serif; font-size: 3.2rem;
+    line-height: 1.2; font-weight: 400; }
+  .block.canto { border-left: 3px solid #3b82f6; padding-left: 4vw; }
+  .placeholder { color: #5f6368; font-size: 1rem; text-align: center; }
+  .err { color: #f28b82; font-size: 1rem; }
+</style>
+</head>
+<body>
+  <div id="out"><div class="placeholder">Say or type an English word…</div></div>
+<script>
+  // raw = the proxy's markdown+spans content. We only need the two Chinese lines; the
+  // <span class="zh-cmn/zh-yue"> tags render with the bundled fonts. Marker replacement only
+  // (no parsing) — labels become styled headers, Mandarin on top, Cantonese below.
+  function setContent(raw) {
+    if (!raw) { return; }
+    var html = raw
+      .replace('**Mandarin:**', '<div class="block cmn"><div class="label">Mandarin 普</div>')
+      .replace('**Cantonese:**', '</div><div class="block canto"><div class="label">Cantonese 粤</div>')
+      + '</div>';
+    document.getElementById('out').innerHTML = html;
+  }
+  function setError(msg) {
+    document.getElementById('out').innerHTML = '<div class="err">' + msg + '</div>';
+  }
+  function setBusy() {
+    document.getElementById('out').innerHTML = '<div class="placeholder">translating…</div>';
+  }
+</script>
+</body>
+</html>

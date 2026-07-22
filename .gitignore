@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# PRIVATE + superseded — benchmark moved to the language-benchmarks repo; has personal queries
+benchmark/
+
+# Android build artifacts / machine-specific
+app/app/build/
+app/.gradle/
+app/build/
+app/local.properties
+
+# Secrets (never commit). NB: app/signing/se.jks is a DEBUG keystore, intentionally committed.
+*.env
+.env
+service-account*.json
+
+.DS_Store
