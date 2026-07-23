@@ -38,11 +38,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Set as Digital Assistant -> hold power opens it (if you remap the power button). -->
-            <intent-filter>
-                <action android:name="android.intent.action.ASSIST" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
         </activity>
 
         <!-- Reliable lock-screen launch: swipe down on the lock screen, tap this tile. -->
@@ -55,6 +50,35 @@
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
+        </service>
+
+        <!-- Digital Assistant: when set as your assistant, the assist gesture (Quick Tap ->
+             "Access digital assistant", hold-power if remapped, or the corner-swipe) opens the
+             translator from a locked/black screen. -->
+        <service
+            android:name=".AssistService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/interaction_service" />
+        </service>
+        <service
+            android:name=".AssistSessionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionSessionService" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".AssistRecognitionService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data android:name="android.speech" android:resource="@xml/recognition_service" />
         </service>
 
         <!-- Shelved volume-chord service (kept for a future revisit; no longer started). -->
