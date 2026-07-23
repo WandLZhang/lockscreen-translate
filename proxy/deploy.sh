@@ -17,7 +17,7 @@ cd "$(dirname "$0")"
 PROJECT="${LT_PROJECT:-wz-cloud-claude}"
 REGION="${LT_REGION:-us-east4}"  # us-east4 is the org-allowed Cloud Run region (matches cloud-claude)
 GROUNDING="${LT_GROUNDING:-auto}"
-MIN_INSTANCES="${MIN_INSTANCES:-0}"
+MIN_INSTANCES="${MIN_INSTANCES:-1}"   # 1 warm instance by default — kills cold-start latency
 SECRET_NAME="${LT_SECRET_NAME:-lockscreen-translate-token}"
 
 # Default model = latest benchmark winner, if available.

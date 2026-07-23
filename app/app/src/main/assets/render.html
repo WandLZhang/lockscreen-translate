@@ -252,8 +252,28 @@
     var m={'1':'#e15a5a','2':'#e6a13a','3':'#3fae4f','4':'#5a8fe1','5':'#b06fe0','6':'#9aa0a6'};
     return m[(syl||'').trim().slice(-1)] || '#dfe3ea';
   }
-  function colourReading(r){
-    return r.split(' ').filter(Boolean).map(function(s){ return '<span style="color:'+toneColor(s)+'">'+s+'</span>'; }).join(' ');
+  // numbered Mandarin pinyin -> tone marks (jian3 -> jiǎn). Standard vowel-placement, no regex.
+  function pyDiacritic(syl){
+    if(!syl) return syl;
+    var s=syl.toLowerCase(), tone=0, last=s.charAt(s.length-1);
+    if(last>='1'&&last<='5'){ tone=+last; s=s.slice(0,-1); }
+    if(s.indexOf('u:')>=0) s=s.replace('u:','ü');
+    if(s.indexOf('v')>=0) s=s.replace('v','ü');
+    if(!tone || tone===5) return s;                       // neutral tone: no mark
+    var marks={a:'āáǎà',e:'ēéěè',i:'īíǐì',o:'ōóǒò',u:'ūúǔù','ü':'ǖǘǚǜ'}, vs='aeiouü', idx=-1;
+    if(s.indexOf('a')>=0) idx=s.indexOf('a');             // a wins
+    else if(s.indexOf('e')>=0) idx=s.indexOf('e');        // then e
+    else if(s.indexOf('ou')>=0) idx=s.indexOf('o');       // ou -> o
+    else { for(var i=s.length-1;i>=0;i--){ if(vs.indexOf(s.charAt(i))>=0){ idx=i; break; } } }  // else last vowel
+    if(idx<0) return s;
+    var mk=marks[s.charAt(idx)];
+    return mk ? s.slice(0,idx)+mk.charAt(tone-1)+s.slice(idx+1) : s;
+  }
+  function colourReading(r, pinyin){
+    return r.split(' ').filter(Boolean).map(function(s){
+      var disp = pinyin ? pyDiacritic(s) : s;
+      return '<span style="color:'+toneColor(s)+'">'+disp+'</span>';   // colour by the original tone digit
+    }).join(' ');
   }
   function hidePop(){ var p=document.getElementById('pop'); if(p) p.style.display='none'; }
 
@@ -277,7 +297,7 @@
       .filter(function(s){ return s && s.charAt(0)!=='#' && s.indexOf('Mandarin equivalent')!==0; })
       .slice(0,3).join('; ');
     var pel=document.getElementById('pop');
-    pel.innerHTML='<div class="prd">'+colourReading(rd)+'</div>'+(defs?'<div class="pdef">'+defs+'</div>':'');
+    pel.innerHTML='<div class="prd">'+colourReading(rd, !yue)+'</div>'+(defs?'<div class="pdef">'+defs+'</div>':'');
     pel.style.display='block';
     var pw=pel.offsetWidth, ph=pel.offsetHeight;
     pel.style.left=Math.min(Math.max(8,(rect.left+rect.right)/2-pw/2), innerWidth-pw-8)+'px';
