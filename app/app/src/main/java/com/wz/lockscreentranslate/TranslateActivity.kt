@@ -71,6 +71,12 @@ class TranslateActivity : AppCompatActivity() {
         webView.postDelayed({ imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT) }, 300)
     }
 
+    private fun hideKeyboard() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(webView.windowToken, 0)
+        webView.clearFocus()
+    }
+
     /**
      * web=false: JS already shows the 'sending' dots; we stream the result in. web=true (Verify):
      * keep the current result on screen (globe → dots) and swap only when the grounded result lands.
@@ -79,6 +85,7 @@ class TranslateActivity : AppCompatActivity() {
         if (inFlight) return
         inFlight = true
         lastInput = text
+        hideKeyboard()                      // clear Gboard off the sending/result view
         if (web) js("setVerifying(true)")
         val url = Prefs.proxyUrl(this); val token = Prefs.authToken(this); val render = Prefs.renderMode(this)
         Thread {
