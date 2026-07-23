@@ -105,7 +105,7 @@ class TranslateActivity : AppCompatActivity() {
             listening = false
             val text = first(b)?.trim().orEmpty()
             if (text.isEmpty()) js("onVoiceError(${q("Didn’t catch that — tap to try again")})")
-            else { js("onHeard(${q(text)})"); translate(text, web = false) }
+            else js("reviewHeard(${q(text)})")   // show transcript in an editable field; user hits ↵ to translate
         }
         override fun onError(error: Int) {
             listening = false

@@ -9,26 +9,24 @@
   html,body { margin:0; height:100%; background:#000; color:var(--fg);
     font-family:system-ui,-apple-system,sans-serif; overflow:hidden;
     user-select:none; -webkit-user-select:none; }
-  /* clean, beautiful CJK — no pronunciation baked into the glyph (readings come from the dict) */
   .zh-cmn, .zh-yue { font-family:"Noto Sans TC","Noto Sans HK","PingFang HK","Chiron Hei HK",
     "Hiragino Sans GB","Microsoft JhengHei",system-ui,sans-serif; line-height:1.16; font-weight:500; }
 
-  #viz { position:fixed; inset:0; z-index:1; pointer-events:none; transition:opacity .5s ease; }
-  body[data-state="result"] #viz { opacity:.9; }
-  /* the orb IS the control — no mic glyph. Big & centered, shrinks to a dot on result. */
-  #orb { position:fixed; left:50%; top:40%; width:190px; height:190px; margin:-95px 0 0 -95px;
+  #viz { position:fixed; inset:0; z-index:1; pointer-events:none; }
+  /* the wave-ring IS the control — no mic glyph. Centered; shrinks to the bottom on result. */
+  #orb { position:fixed; left:50%; top:44%; width:200px; height:200px; margin:-100px 0 0 -100px;
     border-radius:50%; z-index:5; cursor:pointer;
     transition:top .55s cubic-bezier(.2,.9,.2,1), bottom .55s cubic-bezier(.2,.9,.2,1),
                width .55s cubic-bezier(.2,.9,.2,1), height .55s cubic-bezier(.2,.9,.2,1), margin .55s ease; }
-  body[data-state="result"] #orb { top:auto; bottom:6px; width:72px; height:72px; margin:0 0 0 -36px; }
+  body[data-state="result"] #orb { top:auto; bottom:4px; width:74px; height:74px; margin:0 0 0 -37px; }
 
-  #status { position:fixed; left:0; right:0; top:calc(40% + 122px); z-index:4; pointer-events:none;
-    text-align:center; padding:0 12vw; color:var(--muted); font-size:1.05rem; line-height:1.4;
-    min-height:1.4em; transition:opacity .3s ease; }
+  #status { position:fixed; left:0; right:0; top:calc(44% + 96px); z-index:4; pointer-events:none;
+    text-align:center; padding:0 10vw; color:var(--muted); font-size:1rem; line-height:1.4;
+    min-height:1.3em; transition:opacity .3s ease; }
   body[data-state="result"] #status { opacity:0; }
 
-  /* two columns, EQUAL weight, each auto-fit to fill; scroll if a long result overflows */
-  #result { position:fixed; inset:0; z-index:2; padding:2.4vh 2vw 78px;
+  /* two columns, EQUAL weight; each cell shrinks to its text so it can be scaled up to fill */
+  #result { position:fixed; inset:0; z-index:2; padding:2.4vh 2vw 74px;
     display:flex; flex-direction:row; align-items:stretch;
     opacity:0; transform:translateY(16px); pointer-events:none;
     transition:opacity .5s ease, transform .55s cubic-bezier(.2,.9,.2,1); }
@@ -41,16 +39,15 @@
   .vline { width:1px; background:#ffffff12; align-self:stretch; margin:6vh 0; }
   .label { font-size:.58rem; letter-spacing:.24em; text-transform:uppercase;
     color:var(--muted); margin-bottom:.5rem; }
-  .cell { width:100%; }
+  .cell { display:inline-block; max-width:100%; }
   .err { color:#ff8a80; font-size:1.05rem; text-align:center; }
 
-  /* controls */
   .chip { background:#111420; color:var(--muted); border:1px solid #ffffff14; border-radius:999px;
     padding:.55rem .95rem; font-size:.95rem; cursor:pointer; }
-  #kb { position:fixed; left:16px; bottom:22px; z-index:6; display:inline-block; }
-  #verify { position:fixed; right:16px; bottom:22px; z-index:6; display:none; }
+  #kb { position:fixed; left:16px; bottom:20px; z-index:6; display:inline-block; }
+  #verify { position:fixed; right:16px; bottom:20px; z-index:6; display:none; }
   body[data-state="result"] #verify { display:inline-block; }
-  #txt { display:none; position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:7;
+  #txt { display:none; position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:7;
     background:#111420; color:var(--fg); border:1px solid #ffffff22; border-radius:999px;
     padding:.6rem 1.1rem; font-size:1rem; width:min(70vw,540px); outline:none; }
   body.typing #txt { display:block; }
@@ -59,10 +56,10 @@
     background:#141824; color:#cdd7ff; border:1px solid #2b3350; border-radius:999px;
     padding:.5rem 1rem; font-size:.92rem; animation:pulse 1.3s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:.5;} 50%{opacity:.95;} }
-  /* pronunciation pop-out (reading only — no definition) */
-  #pop { position:fixed; z-index:9; display:none; background:#0d1017ee; border:1px solid #ffffff1f;
+  /* pronunciation pop-out (reading only) */
+  #pop { position:fixed; z-index:9; display:none; background:#0d1017f2; border:1px solid #ffffff1f;
     border-radius:14px; padding:.5rem .9rem; font-size:1.7rem; font-weight:600; letter-spacing:.02em;
-    box-shadow:0 8px 30px #000a; backdrop-filter:blur(6px); white-space:nowrap; }
+    box-shadow:0 8px 30px #000a; white-space:nowrap; }
 </style>
 </head>
 <body data-state="idle">
@@ -88,19 +85,17 @@
   function status(t){ document.getElementById('status').textContent = t || ''; }
   function haveBridge(){ return typeof Android !== 'undefined'; }
 
-  // ---------- living organic orb ----------
+  // ---------- living wave-ring ----------
   var cv = document.getElementById('viz'), ctx = cv.getContext('2d');
   var W,H,DPR=Math.max(1,window.devicePixelRatio||1);
   var t=0, amp=0, ampTarget=0, pop=1, ripples=[];
   var curX=0, curY=0, curBase=0;
   function resize(){ W=cv.width=innerWidth*DPR; H=cv.height=innerHeight*DPR;
-    if(!curX){ curX=W/2; curY=H*0.40; curBase=70*DPR; } }
+    if(!curX){ curX=W/2; curY=H*0.44; curBase=82*DPR; } }
   window.addEventListener('resize', resize); resize();
-
   function targets(){
-    var st=body.getAttribute('data-state');
-    if(st==='result') return { x:W/2, y:H-42*DPR, base:28*DPR };
-    return { x:W/2, y:H*0.40, base:72*DPR };
+    if(body.getAttribute('data-state')==='result') return { x:W/2, y:H-42*DPR, base:26*DPR };
+    return { x:W/2, y:H*0.44, base:82*DPR };
   }
   function boop(){ pop=1.34; ripples.push({r:curBase, a:.9}); if(navigator.vibrate) navigator.vibrate(12); }
 
@@ -110,29 +105,25 @@
     curX += (tg.x-curX)*0.18; curY += (tg.y-curY)*0.18; curBase += (tg.base-curBase)*0.18;
     var st=body.getAttribute('data-state');
     ctx.clearRect(0,0,W,H);
-
-    // ripples (the "boop")
     for(var k=ripples.length-1;k>=0;k--){
       var rp=ripples[k]; rp.r += 5*DPR; rp.a *= 0.93;
       if(rp.a<0.03){ ripples.splice(k,1); continue; }
       ctx.beginPath(); ctx.arc(curX,curY,rp.r,0,Math.PI*2);
       ctx.strokeStyle='rgba(124,156,255,'+rp.a+')'; ctx.lineWidth=2*DPR; ctx.stroke();
     }
-
-    // reactive wave ring — the tappable, boop-able element
-    var base = curBase*pop;
-    var grad = ctx.createLinearGradient(curX-base, curY, curX+base, curY);
+    var base=curBase*pop;
+    var grad=ctx.createLinearGradient(curX-base,curY,curX+base,curY);
     grad.addColorStop(0,'#5b78ff'); grad.addColorStop(.5,'#8b5cf6'); grad.addColorStop(1,'#22d3ee');
     ctx.strokeStyle=grad; ctx.lineCap='round'; ctx.lineWidth=Math.max(2, base*0.055);
-    ctx.shadowBlur=(st==='listening'?28:16)*DPR; ctx.shadowColor='#6a5bff88';
+    ctx.shadowBlur=(st==='listening'?30:18)*DPR; ctx.shadowColor='#6a5bff88';
     var rot=t*0.25, N=72;
     for(var i=0;i<N;i++){
       var a=i/N*Math.PI*2 + rot;
       var wob=(Math.sin(t*2+i*0.5)+1)/2;
       var len;
       if(st==='listening')      len = base*(0.16 + amp*1.3*wob);
-      else if(st==='thinking')  len = base*0.22*(0.35 + 0.65*((Math.sin(t*3.2+i*0.4)+1)/2));
-      else                      len = base*0.12*(0.6 + 0.4*wob);   // idle: calm, alive
+      else if(st==='thinking')  len = base*0.24*(0.35 + 0.65*((Math.sin(t*3.2+i*0.4)+1)/2));
+      else                      len = base*0.20*(0.55 + 0.45*wob);   // idle: clearly alive
       ctx.beginPath();
       ctx.moveTo(curX+Math.cos(a)*base,       curY+Math.sin(a)*base);
       ctx.lineTo(curX+Math.cos(a)*(base+len), curY+Math.sin(a)*(base+len));
@@ -143,7 +134,6 @@
   }
   requestAnimationFrame(draw);
 
-  // ---------- interaction ----------
   function toggleVoice(){
     boop();
     if(!haveBridge()) return;
@@ -156,9 +146,15 @@
   function onAmplitude(x){ ampTarget = Math.max(0, Math.min(1, x)); }
   function onPartial(t){ if(t) status(t); }
   function onHeard(t){ status(t); }
+  function reviewHeard(t){                    // put the transcript in an editable field to confirm/fix before translating
+    resetIdle();
+    var el=document.getElementById('txt'); el.value=t||'';
+    body.classList.add('typing'); el.focus();
+    try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){}
+  }
   function setThinking(){ setState('thinking'); status('translating…'); ampTarget=0; }
   function setBusy(){ setThinking(); }
-  function onVoiceError(msg){ setState('idle'); status(msg || 'Didn’t catch that — tap to try again'); ampTarget=0; }
+  function onVoiceError(msg){ setState('idle'); status(msg || 'Tap to try again'); ampTarget=0; }
   function resetIdle(){ setState('idle'); status('Tap to speak'); ampTarget=0; }
   function setVerifying(on){ document.getElementById('badge').style.display = on?'block':'none'; }
 
@@ -167,7 +163,8 @@
     var parts = raw.split('**Cantonese:**');
     document.getElementById('cellCmn').innerHTML = (parts[0]||'').replace('**Mandarin:**','').trim();
     document.getElementById('cellYue').innerHTML = (parts[1]||'').trim();
-    setState('result'); fitText();
+    setState('result');
+    requestAnimationFrame(fitText);
   }
   function setError(msg){
     document.getElementById('cellCmn').innerHTML = '<div class="err">'+msg+'</div>';
@@ -175,45 +172,39 @@
     setState('result');
   }
 
-  // equal-weight fit: size that fits BOTH columns, applied to both
-  function fitBox(colId, sel){
-    var col=document.getElementById(colId); if(!col) return 999;
-    var el=col.querySelector(sel); if(!el||!el.textContent.trim()) return 999;
-    var label=col.querySelector('.label');
-    var padX=parseFloat(getComputedStyle(col).paddingLeft)||0;
-    var boxW=col.clientWidth-padX*2, boxH=col.clientHeight-(label?label.offsetHeight:0)-8;
-    var lo=22, hi=300, best=lo;
-    for(var i=0;i<14;i++){ var mid=(lo+hi)/2; el.style.fontSize=mid+'px';
-      if(el.scrollWidth<=boxW && el.scrollHeight<=boxH){ best=mid; lo=mid; } else hi=mid; }
-    return best;
+  // ---------- fit: scale text to fill, measured against the window (EQUAL both columns) ----------
+  function metrics(){
+    var availH = Math.max(80, innerHeight - innerHeight*0.024 - 86 - 26 - 12); // -toppad -bottombar -label -gap
+    var availW = Math.max(80, innerWidth*0.40);                                 // per-column text width
+    return { w:availW, h:availH };
+  }
+  function fitSize(cellId){
+    var el=document.getElementById(cellId); if(!el || !el.textContent.trim()) return Infinity;
+    var m=metrics(); el.style.fontSize='100px';
+    var w=el.scrollWidth||1, hh=el.scrollHeight||1;
+    return Math.min(m.w/w, m.h/hh)*100;
   }
   function fitText(){
     if(body.getAttribute('data-state')!=='result') return;
-    var s=Math.min(fitBox('colCmn','.zh-cmn'), fitBox('colYue','.zh-yue')); if(s===999) s=120;
-    ['colCmn|.zh-cmn','colYue|.zh-yue'].forEach(function(pr){
-      var a=pr.split('|'), col=document.getElementById(a[0]), el=col.querySelector(a[1]); if(!el) return;
-      el.style.fontSize=s+'px';
-      var label=col.querySelector('.label'), boxH=col.clientHeight-(label?label.offsetHeight:0)-8;
-      col.classList.toggle('scroll', el.scrollHeight>boxH+2);
-    });
+    var s=Math.min(fitSize('cellCmn'), fitSize('cellYue'));
+    if(!isFinite(s)||s<=0) s=140;
+    s=Math.max(46, Math.min(s, 340));
+    ['cellCmn','cellYue'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.fontSize=s+'px'; });
+    ['colCmn','colYue'].forEach(function(cid){ var c=document.getElementById(cid); if(c) c.classList.toggle('scroll', c.scrollHeight>c.clientHeight+2); });
   }
   window.addEventListener('resize', fitText);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitText);
 
-  // ---------- dictionary pop-out (pronunciation only) ----------
+  // ---------- dictionary pop-out (pronunciation only, tap ON a word) ----------
   var DICT=null;
   (function loadDict(){
     var url='https://storage.googleapis.com/wz-qwen-test-canto-dict/canto-dict.min.json';
     var use=function(j){ DICT=j.entries||j; };
-    try {
-      if(window.caches){
-        caches.open('lt-dict').then(function(c){
-          c.match(url).then(function(r){
-            if(r){ r.json().then(use); }
-            else fetch(url).then(function(resp){ c.put(url, resp.clone()); return resp.json(); }).then(use).catch(function(){});
-          });
-        });
-      } else { fetch(url).then(function(r){return r.json();}).then(use).catch(function(){}); }
-    } catch(e){ fetch(url).then(function(r){return r.json();}).then(use).catch(function(){}); }
+    var plain=function(){ fetch(url).then(function(r){return r.json();}).then(use).catch(function(){}); };
+    try { if(window.caches){ caches.open('lt-dict').then(function(c){ c.match(url).then(function(r){
+      if(r) r.json().then(use);
+      else fetch(url).then(function(resp){ try{c.put(url,resp.clone());}catch(e){} return resp.json(); }).then(use).catch(function(){});
+    }); }); } else plain(); } catch(e){ plain(); }
   })();
 
   function fwdMatch(text,i){
@@ -222,34 +213,45 @@
     for(var n=max;n>=1;n--){ var w=text.substr(i,n); if(DICT[w]) return {word:w, entries:DICT[w]}; }
     return null;
   }
+  function segment(text){                    // FMM left->right; every char lands in a segment
+    var segs=[], i=0;
+    while(i<text.length){
+      var m=fwdMatch(text,i);
+      if(m){ segs.push({s:i, len:m.word.length, entries:m.entries}); i+=m.word.length; }
+      else { i++; }
+    }
+    return segs;
+  }
   function toneColor(syl){
     var m={'1':'#e15a5a','2':'#e6a13a','3':'#3fae4f','4':'#5a8fe1','5':'#b06fe0','6':'#9aa0a6'};
     return m[(syl||'').trim().slice(-1)] || '#dfe3ea';
   }
   function colourReading(r){
-    return r.split(' ').filter(Boolean)
-      .map(function(s){ return '<span style="color:'+toneColor(s)+'">'+s+'</span>'; }).join(' ');
+    return r.split(' ').filter(Boolean).map(function(s){ return '<span style="color:'+toneColor(s)+'">'+s+'</span>'; }).join(' ');
   }
-  function hidePop(){ document.getElementById('pop').style.display='none'; }
+  function hidePop(){ var p=document.getElementById('pop'); if(p) p.style.display='none'; }
 
   function showPronAt(x,y){
-    if(!DICT) return;
+    if(!DICT){ hidePop(); return; }
     var range = document.caretRangeFromPoint ? document.caretRangeFromPoint(x,y)
               : (document.caretPositionFromPoint ? (function(){var p=document.caretPositionFromPoint(x,y); return p&&{startContainer:p.offsetNode,startOffset:p.offset};})() : null);
-    if(!range || !range.startContainer || range.startContainer.nodeType!==3) { hidePop(); return; }
+    if(!range || !range.startContainer || range.startContainer.nodeType!==3){ hidePop(); return; }
     var node=range.startContainer, off=range.startOffset, text=node.textContent;
-    var m = fwdMatch(text,off) || (off>0 ? fwdMatch(text,off-1) : null);
-    if(!m){ hidePop(); return; }
+    var segs=segment(text), seg=null;
+    for(var k=0;k<segs.length;k++){ if(off>=segs[k].s && off<segs[k].s+segs[k].len){ seg=segs[k]; break; } }
+    if(!seg && off>0){ for(var k=0;k<segs.length;k++){ if(off-1>=segs[k].s && off-1<segs[k].s+segs[k].len){ seg=segs[k]; break; } } }
+    if(!seg){ hidePop(); return; }
+    var r=document.createRange(); r.setStart(node,seg.s); r.setEnd(node,seg.s+seg.len);
+    var rect=r.getBoundingClientRect();
+    if(x<rect.left-10 || x>rect.right+10 || y<rect.top-16 || y>rect.bottom+16){ hidePop(); return; }  // tapped empty space
     var yue = !!(node.parentElement && node.parentElement.closest('#colYue'));
-    var e = m.entries[0] || {};
-    var rd = yue ? (e.jy || e.py) : (e.py || e.jy);
+    var e=seg.entries[0]||{}, rd = yue ? (e.jy||e.py) : (e.py||e.jy);
     if(!rd){ hidePop(); return; }
     var pel=document.getElementById('pop');
-    pel.innerHTML = colourReading(rd);
-    pel.style.display='block';
+    pel.innerHTML=colourReading(rd); pel.style.display='block';
     var pw=pel.offsetWidth, ph=pel.offsetHeight;
-    pel.style.left = Math.min(Math.max(8, x-pw/2), innerWidth-pw-8)+'px';
-    pel.style.top  = Math.max(8, y-ph-18)+'px';
+    pel.style.left=Math.min(Math.max(8,(rect.left+rect.right)/2-pw/2), innerWidth-pw-8)+'px';
+    pel.style.top =Math.max(8, rect.top-ph-12)+'px';
   }
   document.getElementById('result').addEventListener('click', function(e){ showPronAt(e.clientX, e.clientY); });
   document.getElementById('pop').addEventListener('click', hidePop);

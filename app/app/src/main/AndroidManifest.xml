@@ -39,7 +39,19 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.LT.Fullscreen" />
 
-        <!-- Holds the MediaSession that catches the volume double-tap while locked. -->
+        <!-- Reliable lock-screen launch: swipe down on the lock screen, tap this tile. -->
+        <service
+            android:name=".TranslateTile"
+            android:exported="true"
+            android:icon="@drawable/ic_tile"
+            android:label="Translate"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Shelved volume-chord service (kept for a future revisit; no longer started). -->
         <service
             android:name=".ChordService"
             android:exported="false"

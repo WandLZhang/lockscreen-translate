@@ -17,20 +17,5 @@
             android:layout_height="wrap_content" android:text="Save" android:layout_marginTop="20dp"/>
         <Button android:id="@+id/open" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:text="Open Translator" android:layout_marginTop="8dp"/>
-
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="#22ffffff" android:layout_marginTop="28dp"/>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Lock-screen trigger" android:textStyle="bold"
-            android:paddingTop="16dp" android:paddingBottom="4dp"/>
-        <androidx.appcompat.widget.SwitchCompat android:id="@+id/chordEnable"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Double-tap volume while locked to open"/>
-        <androidx.appcompat.widget.SwitchCompat android:id="@+id/chordUp"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Trigger on Volume Up (off = Volume Down)" android:paddingTop="10dp"/>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Keeps a quiet notification while armed (required by Android). Single presses still change volume; a media app that's playing can briefly take over the volume keys."
-            android:textSize="12sp" android:textColor="#9aa0a6" android:paddingTop="10dp"/>
     </LinearLayout>
 </ScrollView>
