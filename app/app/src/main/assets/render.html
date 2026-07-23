@@ -57,6 +57,12 @@
     text-align:center; color:var(--muted); font-size:.85rem; }
   body.composing #compose, body.composing #composehint { display:block; }
   body.composing #orb, body.composing #status, body.composing #result, body.composing #viz { opacity:0; pointer-events:none; }
+  /* send arrow: same white, weight and font as the words — reads as part of the type, no chrome */
+  #submit { display:none; position:fixed; right:5vw; top:50%; transform:translateY(-50%); z-index:8;
+    background:none; border:none; cursor:pointer; font-family:inherit; color:var(--fg); font-weight:500;
+    line-height:1; font-size:2.8rem; padding:.2rem .5rem; transition:opacity .15s ease, transform .12s ease; }
+  #submit:active { transform:translateY(-50%) scale(.86); opacity:.55; }
+  body.composing #submit { display:block; }
   #badge { position:fixed; top:2.4vh; right:3vw; z-index:8; display:none;
     background:#141824; color:#cdd7ff; border:1px solid #2b3350; border-radius:999px;
     padding:.5rem 1rem; font-size:.92rem; animation:pulse 1.3s ease-in-out infinite; }
@@ -81,8 +87,9 @@
   <button id="cog" class="chip">⚙</button>
   <button id="kb" class="chip">⌨</button>
   <button id="verify" class="chip">🌐 Verify</button>
-  <textarea id="compose" rows="1" placeholder="Say or type…" autocomplete="off"></textarea>
-  <div id="composehint">edit if needed · press ↵ to translate</div>
+  <textarea id="compose" rows="1" placeholder="Say or type…" autocomplete="off" enterkeyhint="go"></textarea>
+  <button id="submit">→</button>
+  <div id="composehint">tap the text to edit</div>
   <div id="badge">🌐 verifying…</div>
   <div id="pop"></div>
 
@@ -94,7 +101,7 @@
 
   // ---------- living wave-ring ----------
   var cv = document.getElementById('viz'), ctx = cv.getContext('2d');
-  var W,H,DPR=Math.max(1,window.devicePixelRatio||1);
+  var W,H,DPR=Math.min(2, Math.max(1, window.devicePixelRatio||1));  // cap render resolution -> fewer pixels -> smoother
   var t=0, amp=0, ampTarget=0, pop=1, ripples=[];
   var curX=0, curY=0, curBase=0;
   function resize(){
@@ -122,24 +129,27 @@
       ctx.strokeStyle='rgba(124,156,255,'+rp.a+')'; ctx.lineWidth=2*DPR; ctx.stroke();
     }
     var base=curBase*pop;
+    // cheap soft glow: ONE radial fill (per-stroke shadowBlur was the lag — very slow in WebView)
+    var gl=ctx.createRadialGradient(curX,curY,base*0.15,curX,curY,base*1.9);
+    gl.addColorStop(0,'rgba(106,91,255,0.16)'); gl.addColorStop(1,'rgba(106,91,255,0)');
+    ctx.fillStyle=gl; ctx.fillRect(curX-base*2,curY-base*2,base*4,base*4);
+
     var grad=ctx.createLinearGradient(curX-base,curY,curX+base,curY);
     grad.addColorStop(0,'#5b78ff'); grad.addColorStop(.5,'#8b5cf6'); grad.addColorStop(1,'#22d3ee');
-    ctx.strokeStyle=grad; ctx.lineCap='round'; ctx.lineWidth=Math.max(2, base*0.055);
-    ctx.shadowBlur=(st==='listening'?30:18)*DPR; ctx.shadowColor='#6a5bff88';
-    var rot=t*0.25, N=72;
+    ctx.strokeStyle=grad; ctx.lineCap='round'; ctx.lineWidth=Math.max(2, base*0.05);
+    var rot=t*0.25, N=64;
+    ctx.beginPath();                        // ONE batched path for all bars (was 72 separate strokes)
     for(var i=0;i<N;i++){
       var a=i/N*Math.PI*2 + rot;
       var wob=(Math.sin(t*2+i*0.5)+1)/2;
       var len;
       if(st==='listening')      len = base*(0.16 + amp*1.3*wob);
       else if(st==='thinking')  len = base*0.24*(0.35 + 0.65*((Math.sin(t*3.2+i*0.4)+1)/2));
-      else                      len = base*0.20*(0.55 + 0.45*wob);   // idle: clearly alive
-      ctx.beginPath();
+      else                      len = base*0.20*(0.55 + 0.45*wob);
       ctx.moveTo(curX+Math.cos(a)*base,       curY+Math.sin(a)*base);
       ctx.lineTo(curX+Math.cos(a)*(base+len), curY+Math.sin(a)*(base+len));
-      ctx.stroke();
     }
-    ctx.shadowBlur=0;
+    ctx.stroke();
     requestAnimationFrame(draw);
   }
   requestAnimationFrame(draw);
@@ -156,7 +166,7 @@
   function onAmplitude(x){ ampTarget = Math.max(0, Math.min(1, x)); }
   function onPartial(t){ if(t) status(t); }
   function onHeard(t){ status(t); }
-  function reviewHeard(t){ showCompose(t || ''); }   // big centered editable transcript to confirm/fix
+  function reviewHeard(t){ showCompose(t || '', false); }   // transcript shown big, no keyboard; tap → to translate or tap text to edit
   function setThinking(){ setState('thinking'); status('translating…'); ampTarget=0; }
   function setBusy(){ setThinking(); }
   function onVoiceError(msg){ setState('idle'); status(msg || 'Tap to try again'); ampTarget=0; }
@@ -262,22 +272,21 @@
   document.getElementById('pop').addEventListener('click', hidePop);
 
   // ---------- text fallback + verify ----------
-  var kb=document.getElementById('kb'), compose=document.getElementById('compose');
-  function showCompose(text){
+  var kb=document.getElementById('kb'), compose=document.getElementById('compose'), submitBtn=document.getElementById('submit');
+  function showCompose(text, focus){
     compose.value=text||''; body.classList.add('composing'); hidePop(); ampTarget=0;
-    compose.focus(); var L=compose.value.length; try{ compose.setSelectionRange(L,L); }catch(e){}
+    if(focus){ compose.focus(); var L=compose.value.length; try{ compose.setSelectionRange(L,L); }catch(e){} }
+    else { compose.blur(); }
   }
   function hideCompose(){ body.classList.remove('composing'); compose.blur(); }
+  function doSubmit(){ var v=compose.value.trim(); if(v && haveBridge()){ hideCompose(); Android.translateText(v); } }
+  submitBtn.addEventListener('click', doSubmit);
   kb.addEventListener('click', function(){
     if(body.classList.contains('composing')) hideCompose();
-    else { if(haveBridge()) Android.stopVoice(); showCompose(''); }
+    else { if(haveBridge()) Android.stopVoice(); showCompose('', true); }   // manual typing: focus for keyboard
   });
   compose.addEventListener('keydown', function(e){
-    if(e.key==='Enter' && !e.shiftKey){
-      e.preventDefault();
-      var v=compose.value.trim();
-      if(v && haveBridge()){ hideCompose(); Android.translateText(v); }
-    }
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); doSubmit(); }
   });
   document.getElementById('verify').addEventListener('click', function(){ if(haveBridge()) Android.verify(); });
   document.getElementById('cog').addEventListener('click', function(){ if(haveBridge()) Android.openSettings(); });

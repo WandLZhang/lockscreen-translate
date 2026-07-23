@@ -28,6 +28,7 @@ class TranslateActivity : AppCompatActivity() {
     private var ready = false
     private var listening = false
     private var inFlight = false
+    private var gotResult = false
     private var lastInput = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,6 +88,7 @@ class TranslateActivity : AppCompatActivity() {
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())   // any language = device locale
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+        gotResult = false
         listening = true
         recognizer?.startListening(intent)
     }
@@ -107,12 +109,14 @@ class TranslateActivity : AppCompatActivity() {
         }
         override fun onResults(b: Bundle?) {
             listening = false
+            gotResult = true
             val text = first(b)?.trim().orEmpty()
             if (text.isEmpty()) js("onVoiceError(${q("Didn’t catch that — tap to try again")})")
             else js("reviewHeard(${q(text)})")   // show transcript in an editable field; user hits ↵ to translate
         }
         override fun onError(error: Int) {
             listening = false
+            if (inFlight || gotResult) return   // ignore stale errors after a result / once translating
             val msg = when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
                     "Didn’t catch that — tap to try again"
