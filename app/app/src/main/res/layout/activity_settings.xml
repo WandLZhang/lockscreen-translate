@@ -17,5 +17,17 @@
             android:layout_height="wrap_content" android:text="Save" android:layout_marginTop="20dp"/>
         <Button android:id="@+id/open" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:text="Open Translator" android:layout_marginTop="8dp"/>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#22ffffff" android:layout_marginTop="28dp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Lock-screen launch" android:textStyle="bold"
+            android:paddingTop="16dp" android:paddingBottom="4dp"/>
+        <androidx.appcompat.widget.SwitchCompat android:id="@+id/launchNotif"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Show a lock-screen launch button (notification)"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Puts a 譯 Translate button on your lock screen — one tap opens it, and keeps your power menu. (Also: swipe-down Quick Settings has a Translate tile.)"
+            android:textSize="12sp" android:textColor="#9aa0a6" android:paddingTop="10dp"/>
     </LinearLayout>
 </ScrollView>

@@ -16,9 +16,13 @@ object Prefs {
         sp(c).edit().putString("proxyUrl", proxyUrl.trim()).putString("authToken", authToken.trim()).apply()
     }
 
-    // Lock-screen volume-chord trigger
+    // Lock-screen launch notification (one-tap launcher on the lock screen)
+    fun launchNotif(c: Context): Boolean = sp(c).getBoolean("launchNotif", true)
+    fun setLaunchNotif(c: Context, on: Boolean) = sp(c).edit().putBoolean("launchNotif", on).apply()
+
+    // Lock-screen volume-chord trigger (shelved)
     fun chordEnabled(c: Context): Boolean = sp(c).getBoolean("chordEnabled", false)
     fun setChordEnabled(c: Context, on: Boolean) = sp(c).edit().putBoolean("chordEnabled", on).apply()
-    fun chordKey(c: Context): String = sp(c).getString("chordKey", "down")!!   // "up" | "down"
+    fun chordKey(c: Context): String = sp(c).getString("chordKey", "down")!!
     fun setChordKey(c: Context, key: String) = sp(c).edit().putString("chordKey", key).apply()
 }
