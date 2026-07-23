@@ -4,66 +4,266 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
 <style>
-  @font-face {
-    font-family: 'VF-Canto';
-    src: url('fonts/VF-Canto-HKEdB.woff2') format('woff2');
-    font-display: swap; font-weight: 400;
-  }
-  @font-face {
-    font-family: 'Hanzi-Pinyin';
-    src: url('fonts/Hanzi-Pinyin-Font.top.woff2') format('woff2');
-    font-display: swap; font-weight: 400;
-  }
-  html, body { margin: 0; height: 100%; background: #0e0f13; color: #e8eaed;
-    font-family: system-ui, sans-serif; }
-  #out { box-sizing: border-box; min-height: 100%; padding: 4vh 6vw;
-    display: flex; flex-direction: column; justify-content: center; gap: 3.2vh; }
-  .label { font-size: 0.8rem; letter-spacing: .18em; text-transform: uppercase;
-    color: #9aa0a6; margin-bottom: .4rem; }
-  /* Mandarin (pinyin drawn above each char by the font) */
-  .zh-cmn { font-family: 'Hanzi-Pinyin', system-ui, sans-serif; font-size: 2.3rem;
-    line-height: 1.25; font-weight: 400; }
-  /* Cantonese — the star: jyutping drawn above each char by VF-Canto */
-  .zh-yue { font-family: 'VF-Canto', 'Hanzi-Pinyin', system-ui, sans-serif; font-size: 3.2rem;
-    line-height: 1.2; font-weight: 400; }
-  .block.canto { border-left: 3px solid #3b82f6; padding-left: 4vw; }
-  .placeholder { color: #5f6368; font-size: 1rem; text-align: center; }
-  .err { color: #f28b82; font-size: 1rem; }
-  /* verify badge — floats over the CURRENT result without clearing it */
-  #badge { position: fixed; top: 2.2vh; right: 3vw; z-index: 10; display: none;
-    background: #1f2937; color: #cbd5e1; border: 1px solid #374151; border-radius: 999px;
-    padding: .5rem 1rem; font-size: .95rem; opacity: .94;
-    animation: pulse 1.3s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity: .55; } 50% { opacity: .95; } }
+  :root { --fg:#f4f5f7; --muted:#8b8f98; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:#000; color:var(--fg);
+    font-family:system-ui,-apple-system,sans-serif; overflow:hidden;
+    user-select:none; -webkit-user-select:none; }
+  /* clean, beautiful CJK — no pronunciation baked into the glyph (readings come from the dict) */
+  .zh-cmn, .zh-yue { font-family:"Noto Sans TC","Noto Sans HK","PingFang HK","Chiron Hei HK",
+    "Hiragino Sans GB","Microsoft JhengHei",system-ui,sans-serif; line-height:1.16; font-weight:500; }
+
+  #viz { position:fixed; inset:0; z-index:1; pointer-events:none; transition:opacity .5s ease; }
+  body[data-state="result"] #viz { opacity:.9; }
+  /* the orb IS the control — no mic glyph. Big & centered, shrinks to a dot on result. */
+  #orb { position:fixed; left:50%; top:40%; width:190px; height:190px; margin:-95px 0 0 -95px;
+    border-radius:50%; z-index:5; cursor:pointer;
+    transition:top .55s cubic-bezier(.2,.9,.2,1), bottom .55s cubic-bezier(.2,.9,.2,1),
+               width .55s cubic-bezier(.2,.9,.2,1), height .55s cubic-bezier(.2,.9,.2,1), margin .55s ease; }
+  body[data-state="result"] #orb { top:auto; bottom:6px; width:72px; height:72px; margin:0 0 0 -36px; }
+
+  #status { position:fixed; left:0; right:0; top:calc(40% + 122px); z-index:4; pointer-events:none;
+    text-align:center; padding:0 12vw; color:var(--muted); font-size:1.05rem; line-height:1.4;
+    min-height:1.4em; transition:opacity .3s ease; }
+  body[data-state="result"] #status { opacity:0; }
+
+  /* two columns, EQUAL weight, each auto-fit to fill; scroll if a long result overflows */
+  #result { position:fixed; inset:0; z-index:2; padding:2.4vh 2vw 78px;
+    display:flex; flex-direction:row; align-items:stretch;
+    opacity:0; transform:translateY(16px); pointer-events:none;
+    transition:opacity .5s ease, transform .55s cubic-bezier(.2,.9,.2,1); }
+  body[data-state="result"] #result { opacity:1; transform:none; pointer-events:auto; }
+  .col { flex:1 1 0; min-width:0; padding:0 3vw; overflow-y:auto; overflow-x:hidden;
+    display:flex; flex-direction:column; justify-content:center; align-items:flex-start; }
+  .col.scroll { justify-content:flex-start; }
+  .col::-webkit-scrollbar { width:4px; }
+  .col::-webkit-scrollbar-thumb { background:#ffffff2a; border-radius:4px; }
+  .vline { width:1px; background:#ffffff12; align-self:stretch; margin:6vh 0; }
+  .label { font-size:.58rem; letter-spacing:.24em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:.5rem; }
+  .cell { width:100%; }
+  .err { color:#ff8a80; font-size:1.05rem; text-align:center; }
+
+  /* controls */
+  .chip { background:#111420; color:var(--muted); border:1px solid #ffffff14; border-radius:999px;
+    padding:.55rem .95rem; font-size:.95rem; cursor:pointer; }
+  #kb { position:fixed; left:16px; bottom:22px; z-index:6; display:inline-block; }
+  #verify { position:fixed; right:16px; bottom:22px; z-index:6; display:none; }
+  body[data-state="result"] #verify { display:inline-block; }
+  #txt { display:none; position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:7;
+    background:#111420; color:var(--fg); border:1px solid #ffffff22; border-radius:999px;
+    padding:.6rem 1.1rem; font-size:1rem; width:min(70vw,540px); outline:none; }
+  body.typing #txt { display:block; }
+  body.typing #orb, body.typing #status { opacity:0; pointer-events:none; }
+  #badge { position:fixed; top:2.4vh; right:3vw; z-index:8; display:none;
+    background:#141824; color:#cdd7ff; border:1px solid #2b3350; border-radius:999px;
+    padding:.5rem 1rem; font-size:.92rem; animation:pulse 1.3s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:.5;} 50%{opacity:.95;} }
+  /* pronunciation pop-out (reading only — no definition) */
+  #pop { position:fixed; z-index:9; display:none; background:#0d1017ee; border:1px solid #ffffff1f;
+    border-radius:14px; padding:.5rem .9rem; font-size:1.7rem; font-weight:600; letter-spacing:.02em;
+    box-shadow:0 8px 30px #000a; backdrop-filter:blur(6px); white-space:nowrap; }
 </style>
 </head>
-<body>
-  <div id="out"><div class="placeholder">Say or type an English word…</div></div>
+<body data-state="idle">
+  <canvas id="viz"></canvas>
+  <div id="orb"></div>
+  <div id="status">Tap to speak</div>
+
+  <div id="result">
+    <div class="col" id="colCmn"><div class="label">Mandarin 普</div><div class="cell zh-cmn" id="cellCmn"></div></div>
+    <div class="vline"></div>
+    <div class="col" id="colYue"><div class="label">Cantonese 粵</div><div class="cell zh-yue" id="cellYue"></div></div>
+  </div>
+
+  <button id="kb" class="chip">⌨</button>
+  <button id="verify" class="chip">🌐 Verify</button>
+  <input id="txt" placeholder="Type anything…" autocomplete="off"/>
   <div id="badge">🌐 verifying…</div>
+  <div id="pop"></div>
+
 <script>
-  // raw = the proxy's markdown+spans content. We only need the two Chinese lines; the
-  // <span class="zh-cmn/zh-yue"> tags render with the bundled fonts. Marker replacement only
-  // (no parsing) — labels become styled headers, Mandarin on top, Cantonese below.
-  function setContent(raw) {
-    if (!raw) { return; }
-    var html = raw
-      .replace('**Mandarin:**', '<div class="block cmn"><div class="label">Mandarin 普</div>')
-      .replace('**Cantonese:**', '</div><div class="block canto"><div class="label">Cantonese 粤</div>')
-      + '</div>';
-    document.getElementById('out').innerHTML = html;
+  var body = document.body;
+  function setState(s){ body.setAttribute('data-state', s); hidePop(); }
+  function status(t){ document.getElementById('status').textContent = t || ''; }
+  function haveBridge(){ return typeof Android !== 'undefined'; }
+
+  // ---------- living organic orb ----------
+  var cv = document.getElementById('viz'), ctx = cv.getContext('2d');
+  var W,H,DPR=Math.max(1,window.devicePixelRatio||1);
+  var t=0, amp=0, ampTarget=0, pop=1, ripples=[];
+  var curX=0, curY=0, curBase=0;
+  function resize(){ W=cv.width=innerWidth*DPR; H=cv.height=innerHeight*DPR;
+    if(!curX){ curX=W/2; curY=H*0.40; curBase=70*DPR; } }
+  window.addEventListener('resize', resize); resize();
+
+  function targets(){
+    var st=body.getAttribute('data-state');
+    if(st==='result') return { x:W/2, y:H-42*DPR, base:28*DPR };
+    return { x:W/2, y:H*0.40, base:72*DPR };
   }
-  function setError(msg) {
-    document.getElementById('out').innerHTML = '<div class="err">' + msg + '</div>';
+  function boop(){ pop=1.34; ripples.push({r:curBase, a:.9}); if(navigator.vibrate) navigator.vibrate(12); }
+
+  function draw(){
+    t += 0.016; amp += (ampTarget-amp)*0.16; pop += (1-pop)*0.16;
+    var tg=targets();
+    curX += (tg.x-curX)*0.18; curY += (tg.y-curY)*0.18; curBase += (tg.base-curBase)*0.18;
+    var st=body.getAttribute('data-state');
+    ctx.clearRect(0,0,W,H);
+
+    // ripples (the "boop")
+    for(var k=ripples.length-1;k>=0;k--){
+      var rp=ripples[k]; rp.r += 5*DPR; rp.a *= 0.93;
+      if(rp.a<0.03){ ripples.splice(k,1); continue; }
+      ctx.beginPath(); ctx.arc(curX,curY,rp.r,0,Math.PI*2);
+      ctx.strokeStyle='rgba(124,156,255,'+rp.a+')'; ctx.lineWidth=2*DPR; ctx.stroke();
+    }
+
+    // reactive wave ring — the tappable, boop-able element
+    var base = curBase*pop;
+    var grad = ctx.createLinearGradient(curX-base, curY, curX+base, curY);
+    grad.addColorStop(0,'#5b78ff'); grad.addColorStop(.5,'#8b5cf6'); grad.addColorStop(1,'#22d3ee');
+    ctx.strokeStyle=grad; ctx.lineCap='round'; ctx.lineWidth=Math.max(2, base*0.055);
+    ctx.shadowBlur=(st==='listening'?28:16)*DPR; ctx.shadowColor='#6a5bff88';
+    var rot=t*0.25, N=72;
+    for(var i=0;i<N;i++){
+      var a=i/N*Math.PI*2 + rot;
+      var wob=(Math.sin(t*2+i*0.5)+1)/2;
+      var len;
+      if(st==='listening')      len = base*(0.16 + amp*1.3*wob);
+      else if(st==='thinking')  len = base*0.22*(0.35 + 0.65*((Math.sin(t*3.2+i*0.4)+1)/2));
+      else                      len = base*0.12*(0.6 + 0.4*wob);   // idle: calm, alive
+      ctx.beginPath();
+      ctx.moveTo(curX+Math.cos(a)*base,       curY+Math.sin(a)*base);
+      ctx.lineTo(curX+Math.cos(a)*(base+len), curY+Math.sin(a)*(base+len));
+      ctx.stroke();
+    }
+    ctx.shadowBlur=0;
+    requestAnimationFrame(draw);
   }
-  function setBusy() {
-    setVerifying(false);
-    document.getElementById('out').innerHTML = '<div class="placeholder">translating…</div>';
+  requestAnimationFrame(draw);
+
+  // ---------- interaction ----------
+  function toggleVoice(){
+    boop();
+    if(!haveBridge()) return;
+    if(body.getAttribute('data-state')==='listening') Android.stopVoice(); else Android.startVoice();
   }
-  // Verify keeps the CURRENT translation on screen and only floats this badge; the result is
-  // swapped in via setContent when the grounded generation finishes (never a blank in between).
-  function setVerifying(on) {
-    document.getElementById('badge').style.display = on ? 'block' : 'none';
+  document.getElementById('orb').addEventListener('click', toggleVoice);
+
+  // ---------- callbacks from Kotlin ----------
+  function onListening(){ setState('listening'); status('Listening…'); }
+  function onAmplitude(x){ ampTarget = Math.max(0, Math.min(1, x)); }
+  function onPartial(t){ if(t) status(t); }
+  function onHeard(t){ status(t); }
+  function setThinking(){ setState('thinking'); status('translating…'); ampTarget=0; }
+  function setBusy(){ setThinking(); }
+  function onVoiceError(msg){ setState('idle'); status(msg || 'Didn’t catch that — tap to try again'); ampTarget=0; }
+  function resetIdle(){ setState('idle'); status('Tap to speak'); ampTarget=0; }
+  function setVerifying(on){ document.getElementById('badge').style.display = on?'block':'none'; }
+
+  function setContent(raw){
+    if(!raw) return;
+    var parts = raw.split('**Cantonese:**');
+    document.getElementById('cellCmn').innerHTML = (parts[0]||'').replace('**Mandarin:**','').trim();
+    document.getElementById('cellYue').innerHTML = (parts[1]||'').trim();
+    setState('result'); fitText();
   }
+  function setError(msg){
+    document.getElementById('cellCmn').innerHTML = '<div class="err">'+msg+'</div>';
+    document.getElementById('cellYue').innerHTML = '';
+    setState('result');
+  }
+
+  // equal-weight fit: size that fits BOTH columns, applied to both
+  function fitBox(colId, sel){
+    var col=document.getElementById(colId); if(!col) return 999;
+    var el=col.querySelector(sel); if(!el||!el.textContent.trim()) return 999;
+    var label=col.querySelector('.label');
+    var padX=parseFloat(getComputedStyle(col).paddingLeft)||0;
+    var boxW=col.clientWidth-padX*2, boxH=col.clientHeight-(label?label.offsetHeight:0)-8;
+    var lo=22, hi=300, best=lo;
+    for(var i=0;i<14;i++){ var mid=(lo+hi)/2; el.style.fontSize=mid+'px';
+      if(el.scrollWidth<=boxW && el.scrollHeight<=boxH){ best=mid; lo=mid; } else hi=mid; }
+    return best;
+  }
+  function fitText(){
+    if(body.getAttribute('data-state')!=='result') return;
+    var s=Math.min(fitBox('colCmn','.zh-cmn'), fitBox('colYue','.zh-yue')); if(s===999) s=120;
+    ['colCmn|.zh-cmn','colYue|.zh-yue'].forEach(function(pr){
+      var a=pr.split('|'), col=document.getElementById(a[0]), el=col.querySelector(a[1]); if(!el) return;
+      el.style.fontSize=s+'px';
+      var label=col.querySelector('.label'), boxH=col.clientHeight-(label?label.offsetHeight:0)-8;
+      col.classList.toggle('scroll', el.scrollHeight>boxH+2);
+    });
+  }
+  window.addEventListener('resize', fitText);
+
+  // ---------- dictionary pop-out (pronunciation only) ----------
+  var DICT=null;
+  (function loadDict(){
+    var url='https://storage.googleapis.com/wz-qwen-test-canto-dict/canto-dict.min.json';
+    var use=function(j){ DICT=j.entries||j; };
+    try {
+      if(window.caches){
+        caches.open('lt-dict').then(function(c){
+          c.match(url).then(function(r){
+            if(r){ r.json().then(use); }
+            else fetch(url).then(function(resp){ c.put(url, resp.clone()); return resp.json(); }).then(use).catch(function(){});
+          });
+        });
+      } else { fetch(url).then(function(r){return r.json();}).then(use).catch(function(){}); }
+    } catch(e){ fetch(url).then(function(r){return r.json();}).then(use).catch(function(){}); }
+  })();
+
+  function fwdMatch(text,i){
+    if(!DICT) return null;
+    var max=Math.min(8, text.length-i);
+    for(var n=max;n>=1;n--){ var w=text.substr(i,n); if(DICT[w]) return {word:w, entries:DICT[w]}; }
+    return null;
+  }
+  function toneColor(syl){
+    var m={'1':'#e15a5a','2':'#e6a13a','3':'#3fae4f','4':'#5a8fe1','5':'#b06fe0','6':'#9aa0a6'};
+    return m[(syl||'').trim().slice(-1)] || '#dfe3ea';
+  }
+  function colourReading(r){
+    return r.split(' ').filter(Boolean)
+      .map(function(s){ return '<span style="color:'+toneColor(s)+'">'+s+'</span>'; }).join(' ');
+  }
+  function hidePop(){ document.getElementById('pop').style.display='none'; }
+
+  function showPronAt(x,y){
+    if(!DICT) return;
+    var range = document.caretRangeFromPoint ? document.caretRangeFromPoint(x,y)
+              : (document.caretPositionFromPoint ? (function(){var p=document.caretPositionFromPoint(x,y); return p&&{startContainer:p.offsetNode,startOffset:p.offset};})() : null);
+    if(!range || !range.startContainer || range.startContainer.nodeType!==3) { hidePop(); return; }
+    var node=range.startContainer, off=range.startOffset, text=node.textContent;
+    var m = fwdMatch(text,off) || (off>0 ? fwdMatch(text,off-1) : null);
+    if(!m){ hidePop(); return; }
+    var yue = !!(node.parentElement && node.parentElement.closest('#colYue'));
+    var e = m.entries[0] || {};
+    var rd = yue ? (e.jy || e.py) : (e.py || e.jy);
+    if(!rd){ hidePop(); return; }
+    var pel=document.getElementById('pop');
+    pel.innerHTML = colourReading(rd);
+    pel.style.display='block';
+    var pw=pel.offsetWidth, ph=pel.offsetHeight;
+    pel.style.left = Math.min(Math.max(8, x-pw/2), innerWidth-pw-8)+'px';
+    pel.style.top  = Math.max(8, y-ph-18)+'px';
+  }
+  document.getElementById('result').addEventListener('click', function(e){ showPronAt(e.clientX, e.clientY); });
+  document.getElementById('pop').addEventListener('click', hidePop);
+
+  // ---------- text fallback + verify ----------
+  var kb=document.getElementById('kb'), txt=document.getElementById('txt');
+  kb.addEventListener('click', function(){
+    body.classList.toggle('typing');
+    if(body.classList.contains('typing')){ if(haveBridge()) Android.stopVoice(); txt.focus(); }
+  });
+  txt.addEventListener('keydown', function(e){
+    if(e.key==='Enter' && txt.value.trim() && haveBridge()){ Android.translateText(txt.value.trim()); body.classList.remove('typing'); txt.blur(); }
+  });
+  document.getElementById('verify').addEventListener('click', function(){ if(haveBridge()) Android.verify(); });
 </script>
 </body>
 </html>

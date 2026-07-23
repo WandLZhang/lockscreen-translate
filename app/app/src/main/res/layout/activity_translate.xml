@@ -1,22 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="#0e0f13"
-    android:fitsSystemWindows="true">
+    android:background="#000000">
     <WebView android:id="@+id/web"
-        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:background="#16181d" android:padding="10dp">
-        <EditText android:id="@+id/input"
-            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-            android:hint="Say or type English…" android:textColorHint="#5f6368"
-            android:textColor="#e8eaed" android:inputType="textNoSuggestions"
-            android:imeOptions="actionGo" android:maxLines="1"/>
-        <Button android:id="@+id/go" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="Go"/>
-        <Button android:id="@+id/verify" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="🌐 Verify"
-            android:enabled="false"
-            style="?android:attr/borderlessButtonStyle"/>
-    </LinearLayout>
-</LinearLayout>
+        android:layout_width="match_parent" android:layout_height="match_parent"/>
+</FrameLayout>
