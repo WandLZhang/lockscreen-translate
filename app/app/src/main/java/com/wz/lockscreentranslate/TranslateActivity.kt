@@ -37,6 +37,9 @@ class TranslateActivity : AppCompatActivity() {
         }
         setContentView(R.layout.activity_translate)
 
+        // First run (or no token yet) -> send them to Settings to paste the shared token.
+        if (Prefs.authToken(this).isBlank()) startActivity(Intent(this, SettingsActivity::class.java))
+
         webView = findViewById(R.id.web)
         webView.setBackgroundColor(Color.BLACK)
         webView.settings.apply {
@@ -60,6 +63,7 @@ class TranslateActivity : AppCompatActivity() {
         @JavascriptInterface fun stopVoice() { runOnUiThread { this@TranslateActivity.stopVoice() } }
         @JavascriptInterface fun translateText(text: String) { runOnUiThread { translate(text, web = false) } }
         @JavascriptInterface fun verify() { runOnUiThread { if (lastInput.isNotEmpty()) translate(lastInput, web = true) } }
+        @JavascriptInterface fun openSettings() { runOnUiThread { startActivity(Intent(this@TranslateActivity, SettingsActivity::class.java)) } }
     }
 
     private fun maybeStartVoice() {

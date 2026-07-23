@@ -45,6 +45,7 @@
   .chip { background:#111420; color:var(--muted); border:1px solid #ffffff14; border-radius:999px;
     padding:.55rem .95rem; font-size:.95rem; cursor:pointer; }
   #kb { position:fixed; left:16px; bottom:20px; z-index:6; display:inline-block; }
+  #cog { position:fixed; left:14px; top:12px; z-index:6; opacity:.6; padding:.4rem .7rem; }
   #verify { position:fixed; right:16px; bottom:20px; z-index:6; display:none; }
   body[data-state="result"] #verify { display:inline-block; }
   #txt { display:none; position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:7;
@@ -73,6 +74,7 @@
     <div class="col" id="colYue"><div class="label">Cantonese 粵</div><div class="cell zh-yue" id="cellYue"></div></div>
   </div>
 
+  <button id="cog" class="chip">⚙</button>
   <button id="kb" class="chip">⌨</button>
   <button id="verify" class="chip">🌐 Verify</button>
   <input id="txt" placeholder="Type anything…" autocomplete="off"/>
@@ -266,6 +268,7 @@
     if(e.key==='Enter' && txt.value.trim() && haveBridge()){ Android.translateText(txt.value.trim()); body.classList.remove('typing'); txt.blur(); }
   });
   document.getElementById('verify').addEventListener('click', function(){ if(haveBridge()) Android.verify(); });
+  document.getElementById('cog').addEventListener('click', function(){ if(haveBridge()) Android.openSettings(); });
 </script>
 </body>
 </html>
