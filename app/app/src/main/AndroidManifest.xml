@@ -31,13 +31,19 @@
              volume-chord trigger can launch it straight over the keyguard. -->
         <activity
             android:name=".TranslateActivity"
-            android:exported="false"
+            android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"
-            android:theme="@style/Theme.LT.Fullscreen" />
+            android:theme="@style/Theme.LT.Fullscreen">
+            <!-- Set as Digital Assistant -> hold power opens it from anywhere, incl. cold lock screen. -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <!-- Reliable lock-screen launch: swipe down on the lock screen, tap this tile. -->
         <service
