@@ -69,8 +69,18 @@
   @keyframes pulse { 0%,100%{opacity:.5;} 50%{opacity:.95;} }
   /* pronunciation pop-out (reading only) */
   #pop { position:fixed; z-index:9; display:none; background:#0d1017f2; border:1px solid #ffffff1f;
-    border-radius:14px; padding:.5rem .9rem; font-size:1.7rem; font-weight:600; letter-spacing:.02em;
-    box-shadow:0 8px 30px #000a; white-space:nowrap; }
+    border-radius:14px; padding:.55rem .95rem; box-shadow:0 8px 30px #000a;
+    text-align:center; max-width:min(66vw,380px); }
+  #pop .prd { font-size:1.7rem; font-weight:600; letter-spacing:.02em; }
+  #pop .pdef { font-size:.82rem; font-weight:400; color:var(--muted); margin-top:.28rem; line-height:1.3; }
+  /* speaker icon next to the 普/粵 labels */
+  .spk { background:none; border:none; padding:0 0 0 6px; cursor:pointer; vertical-align:middle; line-height:0; }
+  .spk svg { width:15px; height:15px; fill:none; stroke:var(--muted); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .spk:active svg { stroke:var(--fg); }
+  .spk.playing svg { stroke:#7c9cff; }
+  .spk.loading svg { animation:spkpulse 1s ease-in-out infinite; }
+  .spk.err svg { stroke:#ff8a80; }
+  @keyframes spkpulse { 0%,100%{opacity:.3;} 50%{opacity:1;} }
 </style>
 </head>
 <body data-state="idle">
@@ -79,9 +89,9 @@
   <div id="status">Tap to speak</div>
 
   <div id="result">
-    <div class="col" id="colCmn"><div class="label">Mandarin 普</div><div class="cell zh-cmn" id="cellCmn"></div></div>
+    <div class="col" id="colCmn"><div class="label">Mandarin 普 <button class="spk" data-l="cmn" aria-label="Play"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg></button></div><div class="cell zh-cmn" id="cellCmn"></div></div>
     <div class="vline"></div>
-    <div class="col" id="colYue"><div class="label">Cantonese 粵</div><div class="cell zh-yue" id="cellYue"></div></div>
+    <div class="col" id="colYue"><div class="label">Cantonese 粵 <button class="spk" data-l="yue" aria-label="Play"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg></button></div><div class="cell zh-yue" id="cellYue"></div></div>
   </div>
 
   <button id="cog" class="chip">⚙</button>
@@ -180,6 +190,7 @@
     document.getElementById('cellYue').innerHTML = (parts[1]||'').trim();
     setState('result');
     requestAnimationFrame(fitText);
+    schedulePrefetch();                 // pre-generate audio so the speaker is instant
   }
   function setError(msg){
     document.getElementById('cellCmn').innerHTML = '<div class="err">'+msg+'</div>';
@@ -262,14 +273,58 @@
     var yue = !!(node.parentElement && node.parentElement.closest('#colYue'));
     var e=seg.entries[0]||{}, rd = yue ? (e.jy||e.py) : (e.py||e.jy);
     if(!rd){ hidePop(); return; }
+    var defs=(e.d||[]).map(function(s){ return (s||'').trim(); })
+      .filter(function(s){ return s && s.charAt(0)!=='#' && s.indexOf('Mandarin equivalent')!==0; })
+      .slice(0,3).join('; ');
     var pel=document.getElementById('pop');
-    pel.innerHTML=colourReading(rd); pel.style.display='block';
+    pel.innerHTML='<div class="prd">'+colourReading(rd)+'</div>'+(defs?'<div class="pdef">'+defs+'</div>':'');
+    pel.style.display='block';
     var pw=pel.offsetWidth, ph=pel.offsetHeight;
     pel.style.left=Math.min(Math.max(8,(rect.left+rect.right)/2-pw/2), innerWidth-pw-8)+'px';
     pel.style.top =Math.max(8, rect.top-ph-12)+'px';
   }
   document.getElementById('result').addEventListener('click', function(e){ showPronAt(e.clientX, e.clientY); });
   document.getElementById('pop').addEventListener('click', hidePop);
+  // TTS from chinese-convo-live's deployed function (Chirp3-HD). Pre-generated in the background the
+  // instant a result renders, so tapping the speaker is instant; a pulse shows if you tap before it's ready.
+  var TTS_URL='https://us-east4-wz-convo-live.cloudfunctions.net/convo_live_generate_audio';
+  var ttsAudio=null, ttsCache={}, prefetchTimer=null;
+  function fetchTTS(lang, text){
+    var k=lang+':'+text;
+    if(ttsCache[k]) return ttsCache[k];                       // in-flight or done (a Promise)
+    var language=(lang==='yue')?'cantonese':'mandarin';
+    ttsCache[k]=fetch(TTS_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sentence:text,language:language})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(j&&j.audio) return j.audio; throw new Error('no audio'); })
+      .catch(function(err){ delete ttsCache[k]; throw err; });  // drop on failure so it can retry
+    return ttsCache[k];
+  }
+  function prefetchTTS(){
+    var c=document.getElementById('cellCmn').textContent.trim();
+    var y=document.getElementById('cellYue').textContent.trim();
+    if(c) fetchTTS('cmn',c).catch(function(){});
+    if(y) fetchTTS('yue',y).catch(function(){});
+  }
+  function schedulePrefetch(){ if(prefetchTimer) clearTimeout(prefetchTimer); prefetchTimer=setTimeout(prefetchTTS, 500); }
+  function speak(btn, lang, text){
+    if(!text) return;
+    if(ttsAudio){ try{ ttsAudio.pause(); }catch(e){} }
+    btn.classList.remove('err'); btn.classList.add('loading');
+    fetchTTS(lang, text).then(function(b64){
+      btn.classList.remove('loading'); btn.classList.add('playing');
+      ttsAudio=new Audio('data:audio/wav;base64,'+b64);
+      ttsAudio.onended=ttsAudio.onerror=function(){ btn.classList.remove('playing'); };
+      ttsAudio.play();
+    }).catch(function(){ btn.classList.remove('loading'); btn.classList.add('err'); setTimeout(function(){ btn.classList.remove('err'); },1400); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.spk'), function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      var l=b.getAttribute('data-l');
+      var cell=document.getElementById(l==='cmn'?'cellCmn':'cellYue');
+      speak(b, l, cell ? cell.textContent.trim() : '');
+    });
+  });
 
   // ---------- text fallback + verify ----------
   var kb=document.getElementById('kb'), compose=document.getElementById('compose'), submitBtn=document.getElementById('submit');

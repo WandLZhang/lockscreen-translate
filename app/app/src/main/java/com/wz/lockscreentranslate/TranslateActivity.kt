@@ -46,7 +46,8 @@ class TranslateActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             allowFileAccess = true
-            domStorageEnabled = true          // Cache API / storage for the dict
+            domStorageEnabled = true                   // Cache API / storage for the dict
+            mediaPlaybackRequiresUserGesture = false   // let TTS audio play after the async fetch
         }
         webView.addJavascriptInterface(Bridge(), "Android")
         webView.webViewClient = object : android.webkit.WebViewClient() {
