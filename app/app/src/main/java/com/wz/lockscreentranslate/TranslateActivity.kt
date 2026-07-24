@@ -48,6 +48,13 @@ class TranslateActivity : AppCompatActivity() {
         webView.loadUrl("file:///android_asset/render.html")
     }
 
+    /** Returning to the app is always for a new translation — reset to a fresh input, not the
+     *  last result. onRestart fires on a real return (background / screen-off), not a brief pause. */
+    override fun onRestart() {
+        super.onRestart()
+        js("if(window.newInput){ newInput(); }")
+    }
+
     /** JS -> Kotlin (methods arrive on a binder thread; hop to UI). */
     inner class Bridge {
         @JavascriptInterface fun translateText(text: String) { runOnUiThread { translate(text, web = false) } }
