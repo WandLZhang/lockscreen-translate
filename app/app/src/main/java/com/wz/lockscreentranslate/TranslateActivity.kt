@@ -1,6 +1,9 @@
 package com.wz.lockscreentranslate
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Build
@@ -9,6 +12,7 @@ import android.view.inputmethod.InputMethodManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
 /**
@@ -46,12 +50,34 @@ class TranslateActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) { raiseKeyboard() }
         }
         webView.loadUrl("file:///android_asset/render.html")
+
+        ContextCompat.registerReceiver(this, screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
-    /** Returning to the app is always for a new translation — reset to a fresh input, not the
-     *  last result. onRestart fires on a real return (background / screen-off), not a brief pause. */
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(screenOff) }
+        super.onDestroy()
+    }
+
+    /**
+     * Screen off (power button or timeout) -> clear to a fresh input straight away. Because the
+     * activity is showWhenLocked it often isn't fully stopped by a screen-off, so onRestart alone
+     * never fires and the stale result was still there on wake. Clearing while the screen is dark
+     * also means no visible flash.
+     */
+    private val screenOff = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) = resetToInput()
+    }
+
+    /** Belt-and-braces for the ordinary background -> foreground return. */
     override fun onRestart() {
         super.onRestart()
+        resetToInput()
+    }
+
+    private fun resetToInput() {
+        inFlight = false
         js("if(window.newInput){ newInput(); }")
     }
 
