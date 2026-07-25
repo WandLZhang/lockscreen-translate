@@ -77,9 +77,14 @@
   #verify .vdots i:nth-child(2){ animation-delay:.15s; }
   #verify .vdots i:nth-child(3){ animation-delay:.3s; }
   /* pronunciation pop-out (reading + small definition) */
-  #pop { position:fixed; z-index:10; display:none; background:#0d1017f2; border:1px solid #ffffff1f;
+  /* click-through: the pop-out must never swallow the tap meant for the next word */
+  #pop { position:fixed; z-index:10; display:none; pointer-events:none;
+    background:#0d1017f2; border:1px solid #ffffff1f;
     border-radius:14px; padding:.55rem .95rem; box-shadow:0 8px 30px #000a;
     text-align:center; max-width:min(66vw,380px); }
+  /* each dictionary word is its own tap target, with padding bled back out so layout is unchanged */
+  .w { cursor:pointer; padding:.14em .06em; margin:-.14em -.06em; border-radius:.08em; }
+  .w:active { background:#ffffff1f; }
   #pop .prd { font-size:1.7rem; font-weight:600; letter-spacing:.02em; }
   #pop .pdef { font-size:.82rem; font-weight:400; color:var(--muted); margin-top:.28rem; line-height:1.3; }
   .spk { background:none; border:none; padding:0 0 0 6px; cursor:pointer; vertical-align:middle; line-height:0; }
@@ -200,6 +205,7 @@
     document.getElementById('cellCmn').innerHTML = (parts[0]||'').replace('**Mandarin:**','').trim();
     document.getElementById('cellYue').innerHTML = (parts[1]||'').trim();
     setState('result');
+    wrapWords();
     requestAnimationFrame(fitText);
     schedulePrefetch();
   }
@@ -236,7 +242,7 @@
   var DICT=null;
   (function loadDict(){
     var url='https://storage.googleapis.com/wz-qwen-test-canto-dict/canto-dict.min.json';
-    var use=function(j){ DICT=j.entries||j; };
+    var use=function(j){ DICT=j.entries||j; wrapWords(); };   // dict may land after a result is shown
     var plain=function(){ fetch(url).then(function(r){return r.json();}).then(use).catch(function(){}); };
     try { if(window.caches){ caches.open('lt-dict').then(function(c){ c.match(url).then(function(r){
       if(r) r.json().then(use);
@@ -281,34 +287,59 @@
     }).join(' ');
   }
   function hidePop(){ var p=document.getElementById('pop'); if(p) p.style.display='none'; }
-  function showPronAt(x,y){
-    if(!DICT){ hidePop(); return; }
-    var range = document.caretRangeFromPoint ? document.caretRangeFromPoint(x,y)
-              : (document.caretPositionFromPoint ? (function(){var p=document.caretPositionFromPoint(x,y); return p&&{startContainer:p.offsetNode,startOffset:p.offset};})() : null);
-    if(!range || !range.startContainer || range.startContainer.nodeType!==3){ hidePop(); return; }
-    var node=range.startContainer, off=range.startOffset, text=node.textContent;
-    var segs=segment(text), seg=null;
-    for(var k=0;k<segs.length;k++){ if(off>=segs[k].s && off<segs[k].s+segs[k].len){ seg=segs[k]; break; } }
-    if(!seg && off>0){ for(var k=0;k<segs.length;k++){ if(off-1>=segs[k].s && off-1<segs[k].s+segs[k].len){ seg=segs[k]; break; } } }
-    if(!seg){ hidePop(); return; }
-    var r=document.createRange(); r.setStart(node,seg.s); r.setEnd(node,seg.s+seg.len);
-    var rect=r.getBoundingClientRect();
-    if(x<rect.left-10 || x>rect.right+10 || y<rect.top-16 || y>rect.bottom+16){ hidePop(); return; }
-    var yue = !!(node.parentElement && node.parentElement.closest('#colYue'));
-    var e=seg.entries[0]||{}, rd = yue ? (e.jy||e.py) : (e.py||e.jy);
-    if(!rd){ hidePop(); return; }
-    var defs=(e.d||[]).map(function(s){ return (s||'').trim(); })
-      .filter(function(s){ return s && s.charAt(0)!=='#' && s.indexOf('Mandarin equivalent')!==0; })
-      .slice(0,3).join('; ');
+
+  /** Wrap every dictionary word in its own <span class="w">, reading precomputed. Native
+   *  hit-testing then does the work — no caret math, no near-miss dead zones. */
+  function wrapWords(){
+    if(!DICT) return;                       // re-run when the dict finishes loading
+    ['cellCmn','cellYue'].forEach(function(id){
+      var cell=document.getElementById(id); if(!cell) return;
+      var yue = (id==='cellYue');
+      var walker=document.createTreeWalker(cell, NodeFilter.SHOW_TEXT, null, false), nodes=[];
+      while(walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(function(node){
+        if(node.parentElement && node.parentElement.classList.contains('w')) return;  // already wrapped
+        var text=node.textContent; if(!text.trim()) return;
+        var segs=segment(text); if(!segs.length) return;
+        var frag=document.createDocumentFragment(), pos=0;
+        segs.forEach(function(s){
+          if(s.s>pos) frag.appendChild(document.createTextNode(text.slice(pos,s.s)));
+          var e=s.entries[0]||{}, rd = yue ? (e.jy||e.py) : (e.py||e.jy);
+          var sp=document.createElement('span');
+          sp.className='w'; sp.textContent=text.substr(s.s,s.len);
+          if(rd){
+            sp.setAttribute('data-rd', rd);
+            sp.setAttribute('data-yue', yue?'1':'0');
+            var defs=(e.d||[]).map(function(x){ return (x||'').trim(); })
+              .filter(function(x){ return x && x.charAt(0)!=='#' && x.indexOf('Mandarin equivalent')!==0; })
+              .slice(0,3).join('; ');
+            if(defs) sp.setAttribute('data-def', defs);
+          }
+          frag.appendChild(sp);
+          pos=s.s+s.len;
+        });
+        if(pos<text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+        node.parentNode.replaceChild(frag, node);
+      });
+    });
+  }
+
+  function showPopFor(el){
+    var rd=el.getAttribute('data-rd'); if(!rd){ hidePop(); return; }
+    var yue=el.getAttribute('data-yue')==='1', defs=el.getAttribute('data-def')||'';
     var pel=document.getElementById('pop');
     pel.innerHTML='<div class="prd">'+colourReading(rd, !yue)+'</div>'+(defs?'<div class="pdef">'+defs+'</div>':'');
     pel.style.display='block';
-    var pw=pel.offsetWidth, ph=pel.offsetHeight;
+    var rect=el.getBoundingClientRect(), pw=pel.offsetWidth, ph=pel.offsetHeight;
     pel.style.left=Math.min(Math.max(8,(rect.left+rect.right)/2-pw/2), innerWidth-pw-8)+'px';
-    pel.style.top =Math.max(8, rect.top-ph-12)+'px';
+    var top=rect.top-ph-12;
+    pel.style.top=(top<8 ? Math.min(innerHeight-ph-8, rect.bottom+12) : top)+'px';  // flip below if no room
   }
-  document.getElementById('result').addEventListener('click', function(e){ showPronAt(e.clientX, e.clientY); });
-  document.getElementById('pop').addEventListener('click', hidePop);
+
+  document.getElementById('result').addEventListener('click', function(e){
+    var el=e.target && e.target.closest ? e.target.closest('.w') : null;
+    if(el) showPopFor(el); else hidePop();
+  });
 
   // ---------- TTS (chinese-convo-live Chirp3-HD), pre-generated ----------
   var TTS_URL='https://us-east4-wz-convo-live.cloudfunctions.net/convo_live_generate_audio';
