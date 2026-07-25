@@ -53,6 +53,25 @@ class TranslateActivity : AppCompatActivity() {
 
         ContextCompat.registerReceiver(this, screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF),
             ContextCompat.RECEIVER_NOT_EXPORTED)
+        releaseWakeFlag()
+    }
+
+    /** Re-armed when the assist gesture re-launches us onto an existing instance. */
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) setTurnScreenOn(true)
+        resetToInput()
+        releaseWakeFlag()
+    }
+
+    /**
+     * turnScreenOn is only needed for the moment we're launched over a dark keyguard. If it stays
+     * set, the window yanks the screen back on the instant you press power — which is why the power
+     * button looked dead. Release it shortly after we're up so power behaves normally again.
+     */
+    private fun releaseWakeFlag() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return
+        webView.postDelayed({ runCatching { setTurnScreenOn(false) } }, 1200)
     }
 
     override fun onDestroy() {
