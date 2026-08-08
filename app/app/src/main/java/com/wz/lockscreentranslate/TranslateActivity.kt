@@ -24,8 +24,10 @@ import org.json.JSONObject
 class TranslateActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private var inFlight = false
     private var lastInput = ""
+    /** Bumped per submit/reset; late results from an older query are discarded. */
+    private var generation = 0
+    private var groundedLanded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,14 +98,15 @@ class TranslateActivity : AppCompatActivity() {
     }
 
     private fun resetToInput() {
-        inFlight = false
+        generation++          // orphan any in-flight arms so they can't paint over a fresh input
+        groundedLanded = false
         js("if(window.newInput){ newInput(); }")
     }
 
     /** JS -> Kotlin (methods arrive on a binder thread; hop to UI). */
     inner class Bridge {
-        @JavascriptInterface fun translateText(text: String) { runOnUiThread { translate(text, web = false) } }
-        @JavascriptInterface fun verify() { runOnUiThread { if (lastInput.isNotEmpty()) translate(lastInput, web = true) } }
+        @JavascriptInterface fun translateText(text: String) { runOnUiThread { translate(text) } }
+        @JavascriptInterface fun verify() { runOnUiThread { verifyAgain() } }
         @JavascriptInterface fun openSettings() { runOnUiThread { startActivity(Intent(this@TranslateActivity, SettingsActivity::class.java)) } }
         @JavascriptInterface fun focusInput() { runOnUiThread { raiseKeyboard() } }
         @JavascriptInterface fun orient(mode: String) {
@@ -130,31 +133,59 @@ class TranslateActivity : AppCompatActivity() {
     }
 
     /**
-     * web=false: JS already shows the 'sending' dots; we stream the result in. web=true (Verify):
-     * keep the current result on screen (globe → dots) and swap only when the grounded result lands.
+     * Verify-by-default without the wait: fire BOTH arms at once. The ungrounded answer streams in
+     * at ~1.8s so you're never staring at a spinner; the web-grounded one silently replaces it a few
+     * seconds later (dots show meanwhile). If grounding fails you simply keep the fast answer — and
+     * on the queries where grounding is worse, you already saw the good one.
      */
-    private fun translate(text: String, web: Boolean) {
-        if (inFlight) return
-        inFlight = true
+    private fun translate(text: String) {
+        val gen = ++generation
+        groundedLanded = false
         lastInput = text
-        hideKeyboard()                      // clear Gboard off the sending/result view
-        if (web) js("setVerifying(true)")
+        hideKeyboard()
+        js("setVerifying(true)")
+        fire(text, gen, web = false)
+        fire(text, gen, web = true)
+    }
+
+    /** Manual re-check of what's on screen (the 🌐 button). */
+    private fun verifyAgain() {
+        if (lastInput.isEmpty()) return
+        js("setVerifying(true)")
+        fire(lastInput, generation, web = true)
+    }
+
+    private fun fire(text: String, gen: Int, web: Boolean) {
         val url = Prefs.proxyUrl(this); val token = Prefs.authToken(this); val render = Prefs.renderMode(this)
         Thread {
             val sb = StringBuilder()
             TranslateClient.stream(
                 proxyUrl = url, authToken = token, input = text, render = render, web = web,
-                onChunk = { sb.append(it); runOnUiThread { js("setContent(${q(sb.toString())})") } },
-                onDone = { content, _ -> runOnUiThread { js("setContent(${q(content)})"); finishFlight() } },
+                // Only the fast arm streams; the grounded one swaps in whole so the screen
+                // never flickers mid-replacement.
+                onChunk = {
+                    sb.append(it)
+                    if (!web) runOnUiThread {
+                        if (gen == generation && !groundedLanded) js("setContent(${q(sb.toString())})")
+                    }
+                },
+                onDone = { content, _ -> runOnUiThread {
+                    if (gen != generation) return@runOnUiThread     // stale query, drop it
+                    if (web) {
+                        groundedLanded = true
+                        js("setContent(${q(content)})")
+                        js("setVerifying(false)")
+                    } else if (!groundedLanded) js("setContent(${q(content)})")
+                } },
                 onError = { e -> runOnUiThread {
-                    if (web) js("setVerifying(false)") else js("setError(${q(e)})")
-                    finishFlight()
+                    if (gen != generation) return@runOnUiThread
+                    // Grounding failed: keep whatever the fast arm gave us, just stop the dots.
+                    if (web) js("setVerifying(false)")
+                    else if (!groundedLanded) js("setError(${q(e)})")
                 } },
             )
         }.start()
     }
-
-    private fun finishFlight() { inFlight = false; js("setVerifying(false)") }
 
     private fun q(s: String) = JSONObject.quote(s)
     private fun js(code: String) = webView.evaluateJavascript(code, null)

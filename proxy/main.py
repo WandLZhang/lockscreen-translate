@@ -125,7 +125,12 @@ def _stream(spec, system, user, grounding):
                         system=[{"type": "text", "text": system}],
                         messages=[{"role": "user", "content": user}])
             if grounding:
+                # Native Claude web_search, FORCED. Left to itself Claude skips searching almost
+                # always; tool_choice "any" guarantees at least one search while still letting it
+                # return the clean 2-line output. Needs token headroom for the tool round-trip.
                 opts["tools"] = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}]
+                opts["tool_choice"] = {"type": "any"}
+                opts["max_tokens"] = max(MAX_TOKENS, 8000)
             with _anthropic(spec.get("region", "global")).messages.stream(**opts) as s:
                 for ev in s:
                     if getattr(ev, "type", None) == "content_block_delta" and hasattr(ev, "delta"):
@@ -219,9 +224,17 @@ def translate(request):
     render = body.get("render", "spans")
     system = SPAN_PROMPT if render == "spans" else PLAIN_PROMPT
 
-    # Opt-in "verify": inject a forced Gemini google_search fetch of current HK usage, then let
-    # the chosen model translate from it (native hosted grounding is unreliable, so we never use
-    # it). Adds ~5-6s. Default off — the model translates from parametric knowledge (~snappy).
+    # "Verify": ground the translation in a live web search.
+    #
+    # Claude models use their OWN forced web_search (one call, no hop) — it beat the Gemini-fetch
+    # hop on the user's real queries: 4.05 vs 3.84 mean, best on 12/22, and faster (5.0s p50 / 8.0s
+    # worst vs 5.6 / 9.8). Non-Claude models can't self-search here, so they still get the injected
+    # Gemini fetch.
+    # Native Claude web_search was trialled here and REVERTED: forcing it (tool_choice "any") makes
+    # the model sometimes answer in prose instead of the mandated span format — which the renderer
+    # can't parse — it costs 14k-42k input tokens per call vs 1.3k, and its bake-off edge (4.05 vs
+    # 3.84 mean on 22 queries) did not reproduce on retest. The injected Gemini fetch keeps the
+    # generation step clean, cheap and format-safe. Revisit only with a format fix + a bigger A/B.
     grounding = False
     if bool(body.get("web", False)):
         try:
@@ -229,7 +242,7 @@ def translate(request):
             if ctx:
                 system = system + ("\n\n## LIVE WEB CONTEXT — current Hong Kong usage (from web "
                                    "search). Prefer these up-to-date forms:\n" + ctx)
-                print(f"web verify: injected {len(ctx)} chars of live context")
+                print(f"web verify: injected {len(ctx)} chars of Gemini-fetched context")
         except Exception as e:
             print(f"web verify fetch failed (falling back to no-web): {e}")
 

@@ -32,6 +32,21 @@ if [[ -z "${LT_MODEL:-}" ]]; then
   fi
 fi
 
+# Guard: LT_MODEL must exist in main.py's MODELS registry. A bare `bash deploy.sh` once promoted a
+# benchmark winner that the proxy doesn't know (gemini-3.5-flash) and every request 400'd.
+if ! python3 -c "
+import ast, sys
+tree = ast.parse(open('main.py').read())
+for node in tree.body:
+    if isinstance(node, ast.Assign) and getattr(node.targets[0], 'id', '') == 'MODELS':
+        known = [k.value for k in node.value.keys]
+        sys.exit(0 if '${LT_MODEL}' in known else print('known:', known) or 1)
+sys.exit(1)
+"; then
+  echo "ERROR: LT_MODEL='${LT_MODEL}' is not in main.py's MODELS registry — refusing to deploy." >&2
+  exit 1
+fi
+
 ENV_VARS="LT_PROJECT=${PROJECT},LT_MODEL=${LT_MODEL},LT_GROUNDING=${GROUNDING}"
 
 SECRET_FLAG=()
