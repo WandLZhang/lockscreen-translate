@@ -288,6 +288,32 @@
   }
   function hidePop(){ var p=document.getElementById('pop'); if(p) p.style.display='none'; }
 
+  /** Per-character reading, composed. 13.9% of dict headwords carry pinyin but NO jyutping
+   *  (e.g. 佛珠), and blindly falling back to `py` printed the MANDARIN reading in the Cantonese
+   *  column, tone-coloured and indistinguishable from jyutping. Compose from the characters
+   *  instead (佛 fat6 + 珠 zyu1 -> "fat6 zyu1"); only if that fails do we show the other
+   *  language's reading, flagged so the pop-out can label it. */
+  function compose(word, key){
+    var out=[];
+    for(var i=0;i<word.length;i++){
+      var ce=DICT[word.charAt(i)];
+      var v=ce && ce[0] && (ce[0][key]||'').trim();
+      if(!v) return '';
+      out.push(v.split(/\s+/)[0]);        // a single char is one syllable
+    }
+    return out.join(' ');
+  }
+  function readingYue(word, e){
+    var jy=(e.jy||'').trim();            if(jy) return {rd:jy};
+    var c=compose(word,'jy');            if(c)  return {rd:c, composed:true};
+    return {rd:(e.py||'').trim(), wrongLang:true};
+  }
+  function readingCmn(word, e){
+    var py=(e.py||'').trim();            if(py) return {rd:py};
+    var c=compose(word,'py');            if(c)  return {rd:c, composed:true};
+    return {rd:(e.jy||'').trim(), wrongLang:true};
+  }
+
   /** Wrap every dictionary word in its own <span class="w">, reading precomputed. Native
    *  hit-testing then does the work — no caret math, no near-miss dead zones. */
   function wrapWords(){
@@ -304,12 +330,15 @@
         var frag=document.createDocumentFragment(), pos=0;
         segs.forEach(function(s){
           if(s.s>pos) frag.appendChild(document.createTextNode(text.slice(pos,s.s)));
-          var e=s.entries[0]||{}, rd = yue ? (e.jy||e.py) : (e.py||e.jy);
+          var e=s.entries[0]||{}, word=text.substr(s.s,s.len);
+          var r = yue ? readingYue(word, e) : readingCmn(word, e);
+          var rd = r.rd;
           var sp=document.createElement('span');
-          sp.className='w'; sp.textContent=text.substr(s.s,s.len);
+          sp.className='w'; sp.textContent=word;
           if(rd){
             sp.setAttribute('data-rd', rd);
             sp.setAttribute('data-yue', yue?'1':'0');
+            if(r.wrongLang) sp.setAttribute('data-alt','1');   // it's the OTHER language's reading
             var defs=(e.d||[]).map(function(x){ return (x||'').trim(); })
               .filter(function(x){ return x && x.charAt(0)!=='#' && x.indexOf('Mandarin equivalent')!==0; })
               .slice(0,3).join('; ');
@@ -327,8 +356,14 @@
   function showPopFor(el){
     var rd=el.getAttribute('data-rd'); if(!rd){ hidePop(); return; }
     var yue=el.getAttribute('data-yue')==='1', defs=el.getAttribute('data-def')||'';
+    // No reading for this column in the dict — we're showing the other language's; say so.
+    var alt=el.getAttribute('data-alt')==='1';
+    var isPinyin = alt ? yue : !yue;     // which system the shown reading actually is
+    var note = alt ? '<div class="pdef">' + (yue ? 'Mandarin pinyin — no jyutping in dictionary'
+                                                 : 'jyutping — no pinyin in dictionary') + '</div>' : '';
     var pel=document.getElementById('pop');
-    pel.innerHTML='<div class="prd">'+colourReading(rd, !yue)+'</div>'+(defs?'<div class="pdef">'+defs+'</div>':'');
+    pel.innerHTML='<div class="prd">'+colourReading(rd, isPinyin)+'</div>'+note
+                  +(defs?'<div class="pdef">'+defs+'</div>':'');
     pel.style.display='block';
     var rect=el.getBoundingClientRect(), pw=pel.offsetWidth, ph=pel.offsetHeight;
     pel.style.left=Math.min(Math.max(8,(rect.left+rect.right)/2-pw/2), innerWidth-pw-8)+'px';
